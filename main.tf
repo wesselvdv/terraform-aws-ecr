@@ -1,29 +1,29 @@
 locals {
-  principals_readonly_access_non_empty = "${signum(length(var.principals_readonly_access))}"
-  principals_full_access_non_empty     = "${signum(length(var.principals_full_access))}"
-  ecr_need_policy                      = "${length(var.principals_full_access) + length(var.principals_readonly_access) > 0 ? "true" : "false"}"
+  principals_readonly_access_non_empty = signum(length(var.principals_readonly_access))
+  principals_full_access_non_empty     = signum(length(var.principals_full_access))
+  ecr_need_policy                      = length(var.principals_full_access) + length(var.principals_readonly_access) > 0 ? "true" : "false"
 }
 
 module "label" {
   source     = "git::https://github.com/cloudposse/terraform-null-label.git?ref=tags/0.3.3"
-  enabled    = "${var.enabled}"
-  namespace  = "${var.namespace}"
-  stage      = "${var.stage}"
-  name       = "${var.name}"
-  delimiter  = "${var.delimiter}"
-  attributes = "${var.attributes}"
-  tags       = "${var.tags}"
+  enabled    = var.enabled
+  namespace  = var.namespace
+  stage      = var.stage
+  name       = var.name
+  delimiter  = var.delimiter
+  attributes = var.attributes
+  tags       = var.tags
 }
 
 resource "aws_ecr_repository" "default" {
-  count = "${var.enabled == "true" ? 1 : 0}"
-  name  = "${var.use_fullname == "true" ? module.label.id : module.label.name}"
-  tags  = "${module.label.tags}"
+  count = var.enabled == "true" ? 1 : 0
+  name  = var.use_fullname == "true" ? module.label.id : module.label.name
+  tags  = module.label.tags
 }
 
 resource "aws_ecr_lifecycle_policy" "default" {
-  count      = "${var.enabled == "true" ? 1 : 0}"
-  repository = "${aws_ecr_repository.default.name}"
+  count      = var.enabled == "true" ? 1 : 0
+  repository = aws_ecr_repository.default[0].name
 
   policy = <<EOF
 {
@@ -55,21 +55,21 @@ resource "aws_ecr_lifecycle_policy" "default" {
   ]
 }
 EOF
+
 }
 
-data "aws_iam_policy_document" "empty" {}
+data "aws_iam_policy_document" "empty" {
+}
 
 data "aws_iam_policy_document" "resource_readonly_access" {
   statement {
-    sid    = "ReadonlyAccess"
+    sid = "ReadonlyAccess"
     effect = "Allow"
 
-    principals = {
+    principals {
       type = "AWS"
 
-      identifiers = [
-        "${var.principals_readonly_access}",
-      ]
+      identifiers = var.principals_readonly_access
     }
 
     actions = [
@@ -87,15 +87,13 @@ data "aws_iam_policy_document" "resource_readonly_access" {
 
 data "aws_iam_policy_document" "resource_full_access" {
   statement {
-    sid    = "FullAccess"
+    sid = "FullAccess"
     effect = "Allow"
 
-    principals = {
+    principals {
       type = "AWS"
 
-      identifiers = [
-        "${var.principals_full_access}",
-      ]
+      identifiers = var.principals_full_access
     }
 
     actions = [
@@ -116,13 +114,13 @@ data "aws_iam_policy_document" "resource_full_access" {
 }
 
 data "aws_iam_policy_document" "resource" {
-  source_json   = "${local.principals_readonly_access_non_empty ? data.aws_iam_policy_document.resource_readonly_access.json : data.aws_iam_policy_document.empty.json}"
-  override_json = "${local.principals_full_access_non_empty ? data.aws_iam_policy_document.resource_full_access.json : data.aws_iam_policy_document.empty.json}"
-  "statement"   = []
+  source_json = local.principals_readonly_access_non_empty ? data.aws_iam_policy_document.resource_readonly_access.json : data.aws_iam_policy_document.empty.json
+  override_json = local.principals_full_access_non_empty ? data.aws_iam_policy_document.resource_full_access.json : data.aws_iam_policy_document.empty.json
 }
 
 resource "aws_ecr_repository_policy" "default" {
-  count      = "${(local.ecr_need_policy == "true" && var.enabled == "true") ? 1 : 0}"
-  repository = "${aws_ecr_repository.default.name}"
-  policy     = "${data.aws_iam_policy_document.resource.json}"
+  count = local.ecr_need_policy == "true" && var.enabled == "true" ? 1 : 0
+  repository = aws_ecr_repository.default[0].name
+  policy = data.aws_iam_policy_document.resource.json
 }
+
