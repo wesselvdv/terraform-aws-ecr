@@ -17,7 +17,7 @@ module "label" {
 
 resource "aws_ecr_repository" "default" {
   count = var.enabled ? 1 : 0
-  name  = var.use_pushname ? module.label.id : module.label.name
+  name  = var.use_fullname ? module.label.id : module.label.name
   tags  = module.label.tags
 }
 
