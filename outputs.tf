@@ -14,6 +14,6 @@ output "repository_name" {
 }
 
 output "repository_arn" {
-  value       = aws_ecr_repository.default.*.arn
+  value       = join("", aws_ecr_repository.default.*.arn)
   description = "Registry arn"
 }
